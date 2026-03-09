@@ -1,0 +1,15 @@
+**/__pycache__
+**/*.py[cod]
+**/*.pyo
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+.git
+.github
+.env
+*.env
+tests/
+*.md
+pyproject.toml
+requirements-dev.txt
+.dockerignore
