@@ -17,20 +17,20 @@ created: 2026-03-09
 
 | Property | Value |
 |----------|-------|
-| **Framework** | pytest 8.x |
-| **Config file** | pyproject.toml (already configured) |
-| **Quick run command** | `pytest tests/ -v -k "test_" --tb=short` |
-| **Full suite command** | `pytest tests/ -v --cov=server --cov-report=term-missing --cov-fail-under=80` |
-| **Estimated runtime** | ~40 seconds |
+| **Framework** | pytest 7.x |
+| **Config file** | pyproject.toml |
+| **Quick run command** | `pytest tests/ -v --no-cov -k "test_"` |
+| **Full suite command** | `pytest tests/ -v --cov=yfinance_mcp --cov-report=term-missing` |
+| **Estimated runtime** | ~30 seconds |
 
 ---
 
 ## Sampling Rate
 
-- **After every task commit:** Run `pytest tests/ -v -k "test_" --tb=short`
-- **After every plan wave:** Run `pytest tests/ -v --cov=server --cov-report=term-missing`
-- **Before `/gsd:verify-work`:** Full suite must be green (80% coverage)
-- **Max feedback latency:** 40 seconds
+- **After every task commit:** Run `pytest tests/ -v --no-cov -k "test_"`
+- **After every plan wave:** Run `pytest tests/ -v --cov=yfinance_mcp --cov-report=term-missing`
+- **Before `/gsd:verify-work`:** Full suite must be green
+- **Max feedback latency:** 45 seconds
 
 ---
 
@@ -38,12 +38,12 @@ created: 2026-03-09
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 03-01-01 | 1 | 1 | ADV-01 | unit | `pytest tests/test_advanced.py::test_get_options_chain -v` | ✅ W0 | ⬜ pending |
-| 03-01-02 | 1 | 1 | ADV-02 | unit | `pytest tests/test_advanced.py::test_get_financial_statements -v` | ✅ W0 | ⬜ pending |
-| 03-02-01 | 2 | 2 | ADV-03, ADV-04 | unit | `pytest tests/test_advanced.py::test_get_dividends -v` | ✅ W0 | ⬜ pending |
-| 03-02-02 | 2 | 2 | ADV-03, ADV-04 | unit | `pytest tests/test_advanced.py::test_get_earnings -v` | ✅ W0 | ⬜ pending |
-| 03-02-03 | 2 | 2 | SRC-01 | unit | `pytest tests/test_search.py::test_search_symbol -v` | ✅ W0 | ⬜ pending |
-| 03-02-04 | 2 | 2 | SRC-02 | unit | `pytest tests/test_search.py::test_market_overview -v` | ✅ W0 | ⬜ pending |
+| 03-01-01 | 01 | 1 | ADV-01 | unit | `pytest tests/test_options.py -v` | ✅ W0 | ⬜ pending |
+| 03-01-02 | 01 | 1 | ADV-02 | unit | `pytest tests/test_financials.py -v` | ✅ W0 | ⬜ pending |
+| 03-02-01 | 02 | 1 | ADV-03 | unit | `pytest tests/test_dividends.py -v` | ✅ W0 | ⬜ pending |
+| 03-02-02 | 02 | 1 | ADV-04 | unit | `pytest tests/test_earnings.py -v` | ✅ W0 | ⬜ pending |
+| 03-02-03 | 02 | 2 | SRC-01 | unit | `pytest tests/test_search.py -v` | ✅ W0 | ⬜ pending |
+| 03-02-04 | 02 | 2 | SRC-02 | unit | `pytest tests/test_market_overview.py -v` | ✅ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -51,11 +51,13 @@ created: 2026-03-09
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_advanced.py` — stubs for ADV-01, ADV-02, ADV-03, ADV-04
-- [ ] `tests/test_search.py` — stubs for SRC-01, SRC-02
-- [ ] Update `tests/conftest.py` — add fixtures for options, financials DataFrames
-
-**Note:** Existing infrastructure from Phase 1-2 (pytest, coverage) covers all needs.
+- [ ] `tests/test_options.py` — stubs for get_options_chain (ADV-01)
+- [ ] `tests/test_financials.py` — stubs for get_financial_statements (ADV-02)
+- [ ] `tests/test_dividends.py` — stubs for get_dividend_history (ADV-03)
+- [ ] `tests/test_earnings.py` — stubs for get_earnings (ADV-04)
+- [ ] `tests/test_search.py` — stubs for search_symbol (SRC-01)
+- [ ] `tests/test_market_overview.py` — stubs for get_market_overview (SRC-02)
+- [ ] `tests/conftest.py` — shared fixtures (already exists)
 
 ---
 
@@ -63,9 +65,9 @@ created: 2026-03-09
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Options with real expiry | ADV-01 | Requires valid expiry date | Call get_options_chain("AAPL") with real expiry |
-| Financial statements | ADV-02 | Requires real company data | Call get_financial_statements("AAPL") |
-| Market overview all indices | SRC-02 | Multiple external calls | Call get_market_overview() verify 8 indices |
+| MCP Inspector tool listing | All | Requires manual inspector interaction | Run `docker compose up`, connect MCP Inspector, verify tools appear |
+| Real options chain data | ADV-01 | Options data is time-sensitive, market-dependent | Call get_options_chain for AAPL during market hours, verify calls/puts returned |
+| Financial statement completeness | ADV-02 | Requires manual verification of statement structure | Call get_financial_statements for MSFT, verify income/balance/cashflow all present |
 
 ---
 
@@ -75,7 +77,7 @@ created: 2026-03-09
 - [ ] Sampling continuity: no 3 consecutive tasks without automated verify
 - [ ] Wave 0 covers all MISSING references
 - [ ] No watch-mode flags
-- [ ] Feedback latency < 40s
+- [ ] Feedback latency < 45s
 - [ ] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
