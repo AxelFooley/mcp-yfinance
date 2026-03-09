@@ -13,7 +13,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE: ghcr.io/axelfooley/finance-mcp-server
+  IMAGE: ghcr.io/axelfooley/mcp-yfinance
 
 jobs:
   # ── 1. Lint ────────────────────────────────────────────────
