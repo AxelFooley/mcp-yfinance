@@ -167,6 +167,148 @@ def clear_cache() -> str:
     return "Cache cleared"
 
 
+@mcp.tool()
+@cached(ttl=300)
+def get_stock_info(symbol: str) -> dict | str:
+    """
+    Get comprehensive company information for a stock symbol.
+
+    Args:
+        symbol: Stock ticker symbol (e.g., "AAPL", "MSFT")
+
+    Returns:
+        Dictionary with company info including market cap, P/E ratio,
+        sector, industry, description, website, employees, etc.
+        Returns error dict if symbol is invalid.
+    """
+    try:
+        ticker = _ticker(symbol.upper())
+        info = ticker.info
+
+        if not info or info == {}:
+            return {"error": f"Symbol '{symbol}' not found"}
+
+        current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+        previous_close = info.get("previousClose")
+
+        return {
+            "symbol": symbol.upper(),
+            "companyName": info.get("longName") or info.get("shortName"),
+            "marketCap": _safe(info.get("marketCap")),
+            "currentPrice": _safe(current_price),
+            "previousClose": _safe(previous_close),
+            "dayChange": _safe(current_price - previous_close if current_price and previous_close else None),
+            "dayChangePercent": _safe(
+                ((current_price / previous_close) - 1) * 100 if current_price and previous_close else None
+            ),
+            "sector": info.get("sector"),
+            "industry": info.get("industry"),
+            "description": info.get("longBusinessSummary"),
+            "website": info.get("website"),
+            "employees": _safe(info.get("fullTimeEmployees")),
+            "peRatio": _safe(info.get("trailingPE") or info.get("forwardPE")),
+            "dividendYield": _safe(info.get("dividendYield")),
+            "beta": _safe(info.get("beta")),
+            "eps": _safe(info.get("trailingEps") or info.get("forwardEps")),
+            "52WeekHigh": _safe(info.get("fiftyTwoWeekHigh")),
+            "52WeekLow": _safe(info.get("fiftyTwoWeekLow")),
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch info for '{symbol}': {e}", exc_info=True)
+        return {"error": f"Failed to fetch info for '{symbol}': {str(e)}"}
+
+
+@mcp.tool()
+@cached(ttl=60)
+def get_historical_data(symbol: str, period: str = "1mo", interval: str = "1d") -> dict | str:
+    """
+    Get historical OHLCV data for a stock symbol.
+
+    Args:
+        symbol: Stock ticker symbol (e.g., "AAPL", "MSFT")
+        period: Time period (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max)
+        interval: Data interval (1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1mo, 3mo)
+
+    Returns:
+        Dictionary with 'data' key containing list of OHLCV records,
+        and 'metadata' with query parameters. Returns error dict if symbol is invalid.
+    """
+    try:
+        ticker = _ticker(symbol.upper())
+        df = ticker.history(period=period, interval=interval)
+
+        if df.empty:
+            return {"error": f"No data found for symbol '{symbol}' with period={period}, interval={interval}"}
+
+        # Reset index to make Date a column
+        df = df.reset_index()
+
+        # Normalize column names (handle multi-index from yfinance)
+        df.columns = ["Date" if "Date" in str(c) or "date" in str(c) else str(c) for c in df.columns]
+
+        return {
+            "symbol": symbol.upper(),
+            "period": period,
+            "interval": interval,
+            "data": _df_to_records(df),
+            "metadata": {
+                "count": len(df),
+                "start": _iso_format(df["Date"].min()) if "Date" in df.columns else None,
+                "end": _iso_format(df["Date"].max()) if "Date" in df.columns else None,
+            },
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch historical data for '{symbol}': {e}", exc_info=True)
+        return {"error": f"Failed to fetch historical data for '{symbol}': {str(e)}"}
+
+
+@mcp.tool()
+@cached(ttl=30)
+def get_realtime_quote(symbol: str) -> dict | str:
+    """
+    Get real-time quote for a stock symbol.
+
+    Args:
+        symbol: Stock ticker symbol (e.g., "AAPL", "MSFT")
+
+    Returns:
+        Dictionary with current price, day change, volume, bid/ask, etc.
+        Returns error dict if symbol is invalid.
+    """
+    try:
+        ticker = _ticker(symbol.upper())
+        info = ticker.info
+
+        if not info or info.get("regularMarketPrice") is None:
+            return {"error": f"Symbol '{symbol}' not found or market closed"}
+
+        current_price = info.get("regularMarketPrice") or info.get("currentPrice")
+        previous_close = info.get("previousClose") or info.get("regularMarketPreviousClose")
+
+        return {
+            "symbol": symbol.upper(),
+            "price": _safe(current_price),
+            "change": _safe(current_price - previous_close if current_price and previous_close else None),
+            "changePercent": _safe(
+                ((current_price / previous_close) - 1) * 100 if current_price and previous_close else None
+            ),
+            "volume": _safe(info.get("regularMarketVolume") or info.get("volume")),
+            "bid": _safe(info.get("bid")),
+            "ask": _safe(info.get("ask")),
+            "bidSize": _safe(info.get("bidSize")),
+            "askSize": _safe(info.get("askSize")),
+            "high": _safe(info.get("regularMarketDayHigh") or info.get("dayHigh")),
+            "low": _safe(info.get("regularMarketDayLow") or info.get("dayLow")),
+            "open": _safe(info.get("regularMarketOpen") or info.get("open")),
+            "previousClose": _safe(previous_close),
+            "marketCap": _safe(info.get("marketCap")),
+            "timestamp": _iso_format(datetime.now()),
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch quote for '{symbol}': {e}", exc_info=True)
+        return {"error": f"Failed to fetch quote for '{symbol}': {str(e)}"}
+
+
 # ──────────────────────────────────────────────
 # Entry-point
 # ──────────────────────────────────────────────
