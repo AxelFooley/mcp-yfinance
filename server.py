@@ -15,11 +15,16 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 # ──────────────────────────────────────────────
 # Server
 # ──────────────────────────────────────────────
 
+# Disable DNS-rebinding protection so clients connecting from Docker bridge
+# networks (non-localhost Host headers) aren't rejected with 421.
+# The FastMCP constructor auto-enables protection when host="127.0.0.1"
+# (the default), so we must pass this explicitly.
 mcp = FastMCP(
     name="Finance MCP Server",
     instructions=(
@@ -27,6 +32,7 @@ mcp = FastMCP(
         "options chains, news, dividends, earnings, and sector comparison "
         "— all sourced from Yahoo Finance via yfinance."
     ),
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
 )
 
 # ──────────────────────────────────────────────
@@ -994,48 +1000,19 @@ def clear_cache() -> dict:
 if __name__ == "__main__":
     import argparse
 
-    import uvicorn
-    from starlette.middleware import Middleware
-    from starlette.types import ASGIApp, Receive, Scope, Send
-
-    class NormalizeHostMiddleware:
-        """Rewrite the Host header to 'localhost' so the MCP SDK's DNS-rebinding
-        protection doesn't reject connections from Docker bridge IPs or any other
-        non-loopback address that appears in the Host header."""
-
-        def __init__(self, app: ASGIApp) -> None:
-            self.app = app
-
-        async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-            if scope["type"] == "http":
-                headers = {k: v for k, v in scope["headers"]}
-                headers[b"host"] = b"localhost"
-                scope["headers"] = list(headers.items())
-            await self.app(scope, receive, send)
-
     parser = argparse.ArgumentParser(description="Finance MCP Server (streamable HTTP)")
     parser.add_argument("--host", default="0.0.0.0", help="Bind host (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=8000, help="Bind port (default: 8000)")
     parser.add_argument(
         "--transport",
         default="streamable-http",
-        choices=["streamable-http", "sse"],
+        choices=["streamable-http", "sse", "stdio"],
         help="MCP transport (default: streamable-http)",
     )
     args = parser.parse_args()
 
-    print(f"🚀  Finance MCP Server starting on {args.host}:{args.port}  [{args.transport}]")
+    mcp.settings.host = args.host
+    mcp.settings.port = args.port
 
-    # Build the ASGI app directly so we can inject NormalizeHostMiddleware.
-    # Using mcp.http_app() + uvicorn is more robust than mcp.run(middleware=...)
-    # because it doesn't rely on **transport_kwargs forwarding chains.
-    app = mcp.http_app(
-        transport=args.transport,
-        middleware=[Middleware(NormalizeHostMiddleware)],
-    )
-    uvicorn.run(
-        app,
-        host=args.host,
-        port=args.port,
-        lifespan="on",
-    )
+    print(f"🚀  Finance MCP Server starting on {args.host}:{args.port}  [{args.transport}]")
+    mcp.run(transport=args.transport)
