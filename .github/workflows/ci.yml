@@ -2,10 +2,13 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
   pull_request:
-    branches: ["**"]
-  tags: ["v*.*.*"]
+    branches:
+      - "**"
+  tags:
+    - "v*.*.*"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
