@@ -13,7 +13,7 @@
 |---|-------|------|--------------|------------------|
 | 1 | Foundation | Project infrastructure and deployment pipeline | 17 | Server runs locally and in Docker, CI/CD builds images |
 | 2 | Core Tools | Basic financial data retrieval with caching | 11 | Claude can fetch stock quotes, historical data, and company info |
-| 3 | Advanced Data | Options, financials, earnings, dividends, search | 6 | Claude can access advanced market data and search symbols |
+| 3 | Advanced Data | Complete    | 2026-03-09 | Claude can access advanced market data and search symbols |
 | 4 | Analysis | Technical indicators and multi-stock comparison | 7 | Claude can analyze stocks with technical indicators |
 
 ---
