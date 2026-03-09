@@ -1,0 +1,13 @@
+.git
+.github
+.planning
+*.md
+tests/
+.env
+.venv
+venv/
+__pycache__/
+*.pyc
+.coverage
+coverage.xml
+pytest-cache-files/
