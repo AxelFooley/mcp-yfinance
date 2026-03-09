@@ -994,6 +994,7 @@ def clear_cache() -> dict:
 if __name__ == "__main__":
     import argparse
 
+    import uvicorn
     from starlette.middleware import Middleware
     from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -1018,17 +1019,23 @@ if __name__ == "__main__":
     parser.add_argument(
         "--transport",
         default="streamable-http",
-        choices=["streamable-http", "sse", "stdio"],
+        choices=["streamable-http", "sse"],
         help="MCP transport (default: streamable-http)",
     )
     args = parser.parse_args()
 
-    # host / port are set on the FastMCP instance before run()
-    mcp.settings.host = args.host
-    mcp.settings.port = args.port
-
     print(f"🚀  Finance MCP Server starting on {args.host}:{args.port}  [{args.transport}]")
-    mcp.run(
+
+    # Build the ASGI app directly so we can inject NormalizeHostMiddleware.
+    # Using mcp.http_app() + uvicorn is more robust than mcp.run(middleware=...)
+    # because it doesn't rely on **transport_kwargs forwarding chains.
+    app = mcp.http_app(
         transport=args.transport,
         middleware=[Middleware(NormalizeHostMiddleware)],
+    )
+    uvicorn.run(
+        app,
+        host=args.host,
+        port=args.port,
+        lifespan="on",
     )
