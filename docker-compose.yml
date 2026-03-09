@@ -1,6 +1,6 @@
 services:
   yfinance-mcp:
-    image: axelfooley/yfinance-mcp-server:latest
+    image: ghcr.io/axelfooley/yfinance-mcp-server:latest
     # Uncomment to build locally instead:
     # build: .
     ports:
