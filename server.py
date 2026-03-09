@@ -994,6 +994,24 @@ def clear_cache() -> dict:
 if __name__ == "__main__":
     import argparse
 
+    from starlette.middleware import Middleware
+    from starlette.types import ASGIApp, Receive, Scope, Send
+
+    class NormalizeHostMiddleware:
+        """Rewrite the Host header to 'localhost' so the MCP SDK's DNS-rebinding
+        protection doesn't reject connections from Docker bridge IPs or any other
+        non-loopback address that appears in the Host header."""
+
+        def __init__(self, app: ASGIApp) -> None:
+            self.app = app
+
+        async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+            if scope["type"] == "http":
+                headers = {k: v for k, v in scope["headers"]}
+                headers[b"host"] = b"localhost"
+                scope["headers"] = list(headers.items())
+            await self.app(scope, receive, send)
+
     parser = argparse.ArgumentParser(description="Finance MCP Server (streamable HTTP)")
     parser.add_argument("--host", default="0.0.0.0", help="Bind host (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=8000, help="Bind port (default: 8000)")
@@ -1010,4 +1028,7 @@ if __name__ == "__main__":
     mcp.settings.port = args.port
 
     print(f"🚀  Finance MCP Server starting on {args.host}:{args.port}  [{args.transport}]")
-    mcp.run(transport=args.transport)
+    mcp.run(
+        transport=args.transport,
+        middleware=[Middleware(NormalizeHostMiddleware)],
+    )
