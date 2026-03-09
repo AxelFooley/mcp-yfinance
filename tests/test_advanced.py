@@ -1,18 +1,18 @@
 """Tests for advanced tools (options, financials, dividends, earnings, search)."""
 
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 
-from server import get_options_chain, get_financial_statements
+from server import get_financial_statements, get_options_chain
 
 
 @pytest.fixture(autouse=True)
 def clear_caches():
     """Clear all caches before each test."""
     import server
+
     server._cache.clear()
     server._ticker_cache.clear()
     yield
@@ -24,16 +24,20 @@ def test_get_options_chain_valid():
     mock_ticker = MagicMock()
     mock_ticker.options = ["2024-03-15", "2024-03-22"]
 
-    mock_calls_df = pd.DataFrame({
-        "strike": [150.0, 155.0],
-        "lastPrice": [5.0, 3.0],
-        "volume": [1000, 500],
-    })
-    mock_puts_df = pd.DataFrame({
-        "strike": [150.0, 155.0],
-        "lastPrice": [4.0, 2.0],
-        "volume": [800, 400],
-    })
+    mock_calls_df = pd.DataFrame(
+        {
+            "strike": [150.0, 155.0],
+            "lastPrice": [5.0, 3.0],
+            "volume": [1000, 500],
+        }
+    )
+    mock_puts_df = pd.DataFrame(
+        {
+            "strike": [150.0, 155.0],
+            "lastPrice": [4.0, 2.0],
+            "volume": [800, 400],
+        }
+    )
 
     mock_opt = MagicMock()
     mock_opt.calls = mock_calls_df
@@ -82,10 +86,12 @@ def test_get_financial_statements_income():
     """Verify returns income statement."""
     mock_ticker = MagicMock()
 
-    mock_df = pd.DataFrame({
-        "Total Revenue": [100_000_000, 110_000_000],
-        "Net Income": [20_000_000, 22_000_000],
-    })
+    mock_df = pd.DataFrame(
+        {
+            "Total Revenue": [100_000_000, 110_000_000],
+            "Net Income": [20_000_000, 22_000_000],
+        }
+    )
     mock_ticker.income_stmt = mock_df
     mock_ticker.quarterly_income_stmt = mock_df
 
@@ -104,10 +110,12 @@ def test_get_financial_statements_balance():
     """Verify returns balance sheet."""
     mock_ticker = MagicMock()
 
-    mock_df = pd.DataFrame({
-        "Total Assets": [200_000_000, 210_000_000],
-        "Total Liabilities": [80_000_000, 85_000_000],
-    })
+    mock_df = pd.DataFrame(
+        {
+            "Total Assets": [200_000_000, 210_000_000],
+            "Total Liabilities": [80_000_000, 85_000_000],
+        }
+    )
     mock_ticker.balance_sheet = mock_df
     mock_ticker.quarterly_balance_sheet = mock_df
 
@@ -122,10 +130,12 @@ def test_get_financial_statements_cashflow():
     """Verify returns cash flow statement."""
     mock_ticker = MagicMock()
 
-    mock_df = pd.DataFrame({
-        "Operating Cash Flow": [30_000_000, 32_000_000],
-        "Free Cash Flow": [25_000_000, 27_000_000],
-    })
+    mock_df = pd.DataFrame(
+        {
+            "Operating Cash Flow": [30_000_000, 32_000_000],
+            "Free Cash Flow": [25_000_000, 27_000_000],
+        }
+    )
     mock_ticker.cashflow = mock_df
     mock_ticker.quarterly_cashflow = mock_df
 
@@ -140,10 +150,12 @@ def test_get_financial_statements_quarterly():
     """Verify quarterly frequency works."""
     mock_ticker = MagicMock()
 
-    mock_df = pd.DataFrame({
-        "Total Revenue": [25_000_000, 26_000_000],
-        "Net Income": [5_000_000, 5_200_000],
-    })
+    mock_df = pd.DataFrame(
+        {
+            "Total Revenue": [25_000_000, 26_000_000],
+            "Net Income": [5_000_000, 5_200_000],
+        }
+    )
     mock_ticker.income_stmt = pd.DataFrame({"Total Revenue": [100_000_000, 110_000_000]})
     mock_ticker.quarterly_income_stmt = mock_df
 

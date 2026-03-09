@@ -11,20 +11,20 @@ from __future__ import annotations
 import argparse
 import logging
 import math
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 import uvicorn
 import yfinance as yf
+from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.routing import Mount
-
-from mcp.server.fastmcp import FastMCP
-from mcp.server.transport_security import TransportSecuritySettings
 
 # ──────────────────────────────────────────────
 # Logging
@@ -197,9 +197,13 @@ def get_stock_info(symbol: str) -> dict | str:
             "marketCap": _safe(info.get("marketCap")),
             "currentPrice": _safe(current_price),
             "previousClose": _safe(previous_close),
-            "dayChange": _safe(current_price - previous_close if current_price and previous_close else None),
+            "dayChange": _safe(
+                current_price - previous_close if current_price and previous_close else None
+            ),
             "dayChangePercent": _safe(
-                ((current_price / previous_close) - 1) * 100 if current_price and previous_close else None
+                ((current_price / previous_close) - 1) * 100
+                if current_price and previous_close
+                else None
             ),
             "sector": info.get("sector"),
             "industry": info.get("industry"),
@@ -238,13 +242,17 @@ def get_historical_data(symbol: str, period: str = "1mo", interval: str = "1d") 
         df = ticker.history(period=period, interval=interval)
 
         if df.empty:
-            return {"error": f"No data found for symbol '{symbol}' with period={period}, interval={interval}"}
+            return {
+                "error": f"No data found for symbol '{symbol}' with period={period}, interval={interval}"
+            }
 
         # Reset index to make Date a column
         df = df.reset_index()
 
         # Normalize column names (handle multi-index from yfinance)
-        df.columns = ["Date" if "Date" in str(c) or "date" in str(c) else str(c) for c in df.columns]
+        df.columns = [
+            "Date" if "Date" in str(c) or "date" in str(c) else str(c) for c in df.columns
+        ]
 
         return {
             "symbol": symbol.upper(),
@@ -288,9 +296,13 @@ def get_realtime_quote(symbol: str) -> dict | str:
         return {
             "symbol": symbol.upper(),
             "price": _safe(current_price),
-            "change": _safe(current_price - previous_close if current_price and previous_close else None),
+            "change": _safe(
+                current_price - previous_close if current_price and previous_close else None
+            ),
             "changePercent": _safe(
-                ((current_price / previous_close) - 1) * 100 if current_price and previous_close else None
+                ((current_price / previous_close) - 1) * 100
+                if current_price and previous_close
+                else None
             ),
             "volume": _safe(info.get("regularMarketVolume") or info.get("volume")),
             "bid": _safe(info.get("bid")),
@@ -307,9 +319,6 @@ def get_realtime_quote(symbol: str) -> dict | str:
     except Exception as e:
         logger.error(f"Failed to fetch quote for '{symbol}': {e}", exc_info=True)
         return {"error": f"Failed to fetch quote for '{symbol}': {str(e)}"}
-
-
-
 
 
 @mcp.tool()
@@ -340,7 +349,9 @@ def get_options_chain(symbol: str, expiry: str | None = None) -> dict | str:
 
         # Validate expiry exists
         if target_expiry not in expirations:
-            return {"error": f"Expiry '{target_expiry}' not available. Options: {', '.join(expirations[:5])}"}
+            return {
+                "error": f"Expiry '{target_expiry}' not available. Options: {', '.join(expirations[:5])}"
+            }
 
         # Get option chain
         opt = ticker.option_chain(target_expiry)
@@ -389,11 +400,15 @@ def get_financial_statements(
         if statement_type == "income":
             df = ticker.quarterly_income_stmt if frequency == "quarterly" else ticker.income_stmt
         elif statement_type == "balance":
-            df = ticker.quarterly_balance_sheet if frequency == "quarterly" else ticker.balance_sheet
+            df = (
+                ticker.quarterly_balance_sheet if frequency == "quarterly" else ticker.balance_sheet
+            )
         elif statement_type == "cashflow":
             df = ticker.quarterly_cashflow if frequency == "quarterly" else ticker.cashflow
         else:
-            return {"error": f"Invalid statement_type '{statement_type}'. Use: income, balance, cashflow"}
+            return {
+                "error": f"Invalid statement_type '{statement_type}'. Use: income, balance, cashflow"
+            }
 
         if df.empty:
             return {"error": f"No {statement_type} statement available for '{symbol}'"}

@@ -1,7 +1,6 @@
 """Pytest configuration and shared fixtures."""
 
 import math
-from datetime import datetime
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -45,14 +44,16 @@ def mock_ticker():
 @pytest.fixture
 def sample_df():
     """Sample pandas DataFrame with NaN values."""
-    return pd.DataFrame({
-        "Date": pd.date_range("2024-01-01", periods=5),
-        "Open": [100.0, 101.0, math.nan, 103.0, 104.0],
-        "High": [105.0, 106.0, 107.0, 108.0, 109.0],
-        "Low": [99.0, 100.0, 101.0, 102.0, 103.0],
-        "Close": [104.0, 105.0, 106.0, 107.0, 108.0],
-        "Volume": [1000000, 1100000, 1200000, 1300000, 1400000],
-    })
+    return pd.DataFrame(
+        {
+            "Date": pd.date_range("2024-01-01", periods=5),
+            "Open": [100.0, 101.0, math.nan, 103.0, 104.0],
+            "High": [105.0, 106.0, 107.0, 108.0, 109.0],
+            "Low": [99.0, 100.0, 101.0, 102.0, 103.0],
+            "Close": [104.0, 105.0, 106.0, 107.0, 108.0],
+            "Volume": [1000000, 1100000, 1200000, 1300000, 1400000],
+        }
+    )
 
 
 @pytest.fixture
