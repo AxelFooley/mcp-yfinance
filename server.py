@@ -309,6 +309,113 @@ def get_realtime_quote(symbol: str) -> dict | str:
         return {"error": f"Failed to fetch quote for '{symbol}': {str(e)}"}
 
 
+
+
+
+@mcp.tool()
+@cached(ttl=300)
+def get_options_chain(symbol: str, expiry: str | None = None) -> dict | str:
+    """
+    Get options chain for a stock symbol.
+
+    Args:
+        symbol: Stock ticker symbol (e.g., "AAPL", "MSFT")
+        expiry: Optional expiry date (YYYY-MM-DD). If None, uses nearest expiry.
+
+    Returns:
+        Dictionary with 'calls' and 'puts' keys containing lists of option contracts.
+        Each contract has strike, lastPrice, bid, ask, volume, openInterest, impliedVolatility.
+        Returns error dict if no options data available.
+    """
+    try:
+        ticker = _ticker(symbol.upper())
+
+        # Get available expirations
+        expirations = ticker.options
+        if not expirations:
+            return {"error": f"No options data available for '{symbol}'"}
+
+        # Use provided expiry or nearest
+        target_expiry = expiry or expirations[0]
+
+        # Validate expiry exists
+        if target_expiry not in expirations:
+            return {"error": f"Expiry '{target_expiry}' not available. Options: {', '.join(expirations[:5])}"}
+
+        # Get option chain
+        opt = ticker.option_chain(target_expiry)
+        calls = _df_to_records(opt.calls)
+        puts = _df_to_records(opt.puts)
+
+        return {
+            "symbol": symbol.upper(),
+            "expiry": target_expiry,
+            "calls": calls,
+            "puts": puts,
+            "availableExpirations": expirations,
+            "metadata": {
+                "callsCount": len(calls),
+                "putsCount": len(puts),
+            },
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch options for '{symbol}': {e}", exc_info=True)
+        return {"error": f"Failed to fetch options for '{symbol}': {str(e)}"}
+
+
+@mcp.tool()
+@cached(ttl=3600)  # 1 hour - financials update quarterly
+def get_financial_statements(
+    symbol: str,
+    statement_type: str = "income",
+    frequency: str = "annual",
+) -> dict | str:
+    """
+    Get financial statements for a stock symbol.
+
+    Args:
+        symbol: Stock ticker symbol
+        statement_type: 'income', 'balance', or 'cashflow'
+        frequency: 'annual' or 'quarterly'
+
+    Returns:
+        Dict with financial data. Rows are line items, columns are time periods.
+        Returns error dict if statement not available.
+    """
+    try:
+        ticker = _ticker(symbol.upper())
+
+        # Get appropriate statement
+        if statement_type == "income":
+            df = ticker.quarterly_income_stmt if frequency == "quarterly" else ticker.income_stmt
+        elif statement_type == "balance":
+            df = ticker.quarterly_balance_sheet if frequency == "quarterly" else ticker.balance_sheet
+        elif statement_type == "cashflow":
+            df = ticker.quarterly_cashflow if frequency == "quarterly" else ticker.cashflow
+        else:
+            return {"error": f"Invalid statement_type '{statement_type}'. Use: income, balance, cashflow"}
+
+        if df.empty:
+            return {"error": f"No {statement_type} statement available for '{symbol}'"}
+
+        # Reset index to make line items a column
+        df = df.reset_index()
+
+        return {
+            "symbol": symbol.upper(),
+            "statementType": statement_type,
+            "frequency": frequency,
+            "data": _df_to_records(df),
+            "metadata": {
+                "lineItems": len(df),
+                "periods": df.shape[1] - 1,
+            },
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch financials for '{symbol}': {e}", exc_info=True)
+        return {"error": f"Failed to fetch financials for '{symbol}': {str(e)}"}
+
+
 # ──────────────────────────────────────────────
 # Entry-point
 # ──────────────────────────────────────────────
