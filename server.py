@@ -431,6 +431,199 @@ def get_financial_statements(
         return {"error": f"Failed to fetch financials for '{symbol}': {str(e)}"}
 
 
+@mcp.tool()
+@cached(ttl=300)
+def get_dividend_history(symbol: str) -> dict | str:
+    """
+    Get dividend payment history for a stock symbol.
+
+    Args:
+        symbol: Stock ticker symbol
+
+    Returns:
+        Dictionary with dividend payments and calculated annual yield.
+        Returns empty array if no dividends.
+    """
+    try:
+        ticker = _ticker(symbol.upper())
+        divs = ticker.dividends
+
+        if divs.empty:
+            return {"symbol": symbol.upper(), "dividends": [], "metadata": {"count": 0}}
+
+        df = divs.reset_index()
+        df.columns = ["Date", "Amount"]
+
+        # Calculate yield (need current price)
+        info = ticker.info
+        current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+        if df.empty:
+            annual_div = 0
+        else:
+            annual_div = df.tail(4)["Amount"].sum()  # Last 4 quarters
+
+        return {
+            "symbol": symbol.upper(),
+            "currentPrice": _safe(current_price),
+            "annualYield": _safe((annual_div / current_price * 100) if current_price else None),
+            "dividends": _df_to_records(df),
+            "metadata": {"count": len(df)},
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch dividends for '{symbol}': {e}", exc_info=True)
+        return {"error": f"Failed to fetch dividends for '{symbol}': {str(e)}"}
+
+
+@mcp.tool()
+@cached(ttl=300)
+def get_earnings(symbol: str) -> dict | str:
+    """
+    Get earnings dates and EPS data for a stock symbol.
+
+    Args:
+        symbol: Stock ticker symbol
+
+    Returns:
+        Dictionary with upcoming earnings date and historical EPS data.
+    """
+    try:
+        ticker = _ticker(symbol.upper())
+        info = ticker.info
+
+        # Upcoming earnings
+        next_earnings = {
+            "date": _iso_format(info.get("nextEarningsDate")),
+            "estimate": _safe(info.get("epsForward")),
+            "previous": _safe(info.get("epsTrailingTwelveMonths")),
+        }
+
+        # Historical earnings (from earnings_dates DataFrame)
+        earnings_df = ticker.earnings_dates
+        if earnings_df.empty:
+            return {
+                "symbol": symbol.upper(),
+                "upcoming": next_earnings,
+                "history": [],
+                "metadata": {"count": 0},
+            }
+
+        return {
+            "symbol": symbol.upper(),
+            "upcoming": next_earnings,
+            "history": _df_to_records(earnings_df.reset_index()),
+            "metadata": {"count": len(earnings_df)},
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch earnings for '{symbol}': {e}", exc_info=True)
+        return {"error": f"Failed to fetch earnings for '{symbol}': {str(e)}"}
+
+
+@mcp.tool()
+def search_symbol(query: str) -> dict | str:
+    """
+    Search for stock ticker symbols by company name.
+
+    Note: yfinance doesn't provide a search API. This matches common symbols
+    and suggests using external services for comprehensive search.
+
+    Args:
+        query: Company name or partial name
+
+    Returns:
+        Dictionary with matching symbols and company names.
+    """
+    # Common major tickers
+    major_tickers = {
+        "apple": "AAPL",
+        "microsoft": "MSFT",
+        "google": "GOOGL",
+        "alphabet": "GOOGL",
+        "amazon": "AMZN",
+        "tesla": "TSLA",
+        "meta": "META",
+        "facebook": "META",
+        "nvidia": "NVDA",
+        "netflix": "NFLX",
+        "johnson": "JNJ",
+        "jpmorgan": "JPM",
+        "bank": "BAC",
+        "walmart": "WMT",
+        "disney": "DIS",
+        "pfizer": "PFE",
+        "coca": "KO",
+        "ibm": "IBM",
+        "intel": "INTC",
+        "amd": "AMD",
+    }
+
+    query_lower = query.lower()
+    matches = {name: ticker for name, ticker in major_tickers.items() if query_lower in name}
+
+    if matches:
+        return {
+            "query": query,
+            "matches": [
+                {"name": name.title(), "symbol": ticker} for name, ticker in matches.items()
+            ],
+        }
+
+    # Try direct ticker lookup
+    try:
+        test_ticker = yf.Ticker(query.upper())
+        if test_ticker.info and test_ticker.info.get("longName"):
+            return {
+                "query": query,
+                "matches": [{"name": test_ticker.info.get("longName"), "symbol": query.upper()}],
+            }
+    except Exception:
+        pass
+
+    return {
+        "query": query,
+        "matches": [],
+        "note": "For comprehensive search, use Yahoo Finance search directly",
+    }
+
+
+@mcp.tool()
+def get_market_overview() -> dict | str:
+    """
+    Get snapshot of major market indices and commodities.
+
+    Returns:
+        Dictionary with current values and changes for S&P 500, NASDAQ, DOW,
+        VIX, 10Y Treasury, Gold, Crude Oil, EUR/USD, and BTC/USD.
+    """
+    indices = {
+        "S&P 500": "^GSPC",
+        "NASDAQ": "^IXIC",
+        "DOW": "^DJI",
+        "VIX": "^VIX",
+        "10Y Treasury": "^TNX",
+        "Gold": "GC=F",
+        "Crude Oil": "CL=F",
+        "EUR/USD": "EURUSD=X",
+        "BTC/USD": "BTC-USD",
+    }
+
+    result = {}
+    for name, symbol in indices.items():
+        try:
+            idx_ticker = yf.Ticker(symbol)
+            idx_info = idx_ticker.info
+            current = idx_info.get("regularMarketPrice") or idx_info.get("currentPrice")
+            previous = idx_info.get("previousClose") or 0
+            result[name] = {
+                "symbol": symbol,
+                "value": _safe(current),
+                "change": _safe(current - previous if current else None),
+            }
+        except Exception:
+            result[name] = {"error": "Data not available"}
+
+    return {"indices": result, "timestamp": _iso_format(datetime.now())}
+
+
 # ──────────────────────────────────────────────
 # Entry-point
 # ──────────────────────────────────────────────
