@@ -45,7 +45,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Comparative Analysis
 
-- [ ] **COMP-01**: Server compares multiple stocks side-by-side with performance metrics (period return, volatility, Sharpe ratio)
+- [x] **COMP-01**: Server compares multiple stocks side-by-side with performance metrics (period return, volatility, Sharpe ratio)
 
 ### Data Quality
 
@@ -144,7 +144,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ADV-01 through ADV-04 | Phase 3 | Pending |
 | SRC-01 through SRC-02 | Phase 3 | Pending |
 | TECH-01 through TECH-06 | Phase 4 | Pending |
-| COMP-01 | Phase 4 | Pending |
+| COMP-01 | Phase 4 | Complete |
 | QUAL-01 through QUAL-04 | Phase 2 | Pending |
 | CACHE-01 through CACHE-06 | Phase 2 | Pending |
 | DOCKER-01 through DOCKER-06 | Phase 1 | Pending |
