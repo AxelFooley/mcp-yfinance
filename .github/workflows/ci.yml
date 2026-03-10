@@ -56,7 +56,9 @@ jobs:
         run: pip install -r requirements-dev.txt
 
       - name: run test suite
-        run: pytest
+        run: PYTHONPATH=. pytest
+        env:
+          PYTHONPATH: .
 
   docker:
     name: Docker (build & push)

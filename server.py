@@ -21,10 +21,7 @@ import uvicorn
 import yfinance as yf
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
-from starlette.applications import Starlette
-from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
-from starlette.routing import Mount
 
 # ──────────────────────────────────────────────
 # Logging
@@ -139,6 +136,10 @@ def _ticker(symbol: str) -> yf.Ticker:
 # networks (non-localhost Host headers) aren't rejected with 421.
 # The FastMCP constructor auto-enables protection when host="127.0.0.1"
 # (the default), so we must pass this explicitly.
+#
+# Enable stateless_http mode for compatibility with MCP Inspector and other
+# clients that may not properly handle session IDs. In stateless mode, a new
+# transport is created for each request, so no session management is required.
 mcp = FastMCP(
     name="Finance MCP Server",
     instructions=(
@@ -147,6 +148,7 @@ mcp = FastMCP(
         "— all sourced from Yahoo Finance via yfinance."
     ),
     transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+    stateless_http=True,
 )
 
 # ──────────────────────────────────────────────
@@ -937,28 +939,25 @@ if __name__ == "__main__":
 
     print(f"🚀  Finance MCP Server starting on {args.host}:{args.port}  [{args.transport}]")
 
-    # Get the ASGI app for the specified transport
-    if args.transport == "streamable-http":
-        mcp_app = mcp.streamable_http_app()
-    elif args.transport == "sse":
-        mcp_app = mcp.sse_app()
+    # For HTTP-based transports, get the app and add CORS middleware for MCP Inspector compatibility
+    if args.transport in ("streamable-http", "sse"):
+        # Get the ASGI app for the specified transport
+        if args.transport == "streamable-http":
+            app = mcp.streamable_http_app()
+        else:  # sse
+            app = mcp.sse_app()
+
+        # Add CORS middleware to the existing app (preserves lifespan)
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
+        # Use uvicorn to run the app
+        uvicorn.run(app, host=args.host, port=args.port)
     else:
         # stdio doesn't use HTTP, use the default run method
         mcp.run(transport=args.transport)
-        exit(0)
-
-    # Create a wrapper app with CORS middleware for MCP Inspector compatibility
-    app = Starlette(
-        routes=[Mount("/", app=mcp_app)],
-        middleware=[
-            Middleware(
-                CORSMiddleware,
-                allow_origins=["*"],
-                allow_credentials=True,
-                allow_methods=["*"],
-                allow_headers=["*"],
-            )
-        ],
-    )
-
-    uvicorn.run(app, host=args.host, port=args.port)
