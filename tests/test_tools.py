@@ -63,6 +63,8 @@ def test_get_stock_info_invalid():
 
     empty_ticker = MagicMock()
     empty_ticker.info = {}
+    empty_ticker.fast_info = {}  # Mock fast_info as empty to trigger full validation path
+    empty_ticker.history.return_value = pd.DataFrame()  # Empty history for final validation
 
     with patch("server._ticker", return_value=empty_ticker):
         result = get_stock_info("INVALID")
