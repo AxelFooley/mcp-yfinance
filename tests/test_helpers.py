@@ -1,10 +1,8 @@
 """Tests for helper functions."""
 
 import math
-from datetime import datetime
 
 import pandas as pd
-import pytest
 
 from server import _df_to_records, _iso_format, _safe, _series_to_dict, _ticker
 
@@ -67,6 +65,7 @@ def test_series_to_dict():
 
 def test_ticker_cache(monkeypatch):
     """Verify Ticker object reuse."""
+
     # Mock yfinance.Ticker
     class MockTicker:
         def __init__(self, symbol):
@@ -76,6 +75,7 @@ def test_ticker_cache(monkeypatch):
 
     # Clear cache first
     import server
+
     server._ticker_cache.clear()
 
     # First call creates new Ticker

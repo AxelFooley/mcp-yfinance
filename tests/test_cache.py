@@ -1,9 +1,6 @@
 """Tests for caching system."""
 
 import time
-from datetime import datetime, timedelta
-
-import pytest
 
 from server import _cache, _cache_get, _cache_key, _cache_set, cached
 
@@ -54,6 +51,7 @@ def test_cached_decorator():
 
     # Cleanup
     import server
+
     server._cache.clear()
 
 
@@ -86,6 +84,7 @@ def test_cached_decorator_ttl_expiry():
 
     # Cleanup
     import server
+
     server._cache.clear()
 
 

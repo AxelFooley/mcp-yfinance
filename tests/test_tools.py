@@ -1,13 +1,11 @@
 """Tests for MCP tools."""
 
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 
 from server import (
-    _cache,
     get_historical_data,
     get_realtime_quote,
     get_stock_info,
@@ -31,6 +29,7 @@ def mock_ticker_factory():
 def test_get_stock_info_valid(mock_ticker_factory, mock_ticker):
     """Verify return dict has all expected keys."""
     import server
+
     server._ticker_cache.clear()
 
     with patch("server._ticker", return_value=mock_ticker):
@@ -47,6 +46,7 @@ def test_get_stock_info_valid(mock_ticker_factory, mock_ticker):
 def test_get_stock_info_uppercases_symbol(mock_ticker_factory, mock_ticker):
     """Verify symbol is uppercased even if passed lowercase."""
     import server
+
     server._ticker_cache.clear()
 
     with patch("server._ticker", return_value=mock_ticker):
@@ -58,6 +58,7 @@ def test_get_stock_info_uppercases_symbol(mock_ticker_factory, mock_ticker):
 def test_get_stock_info_invalid():
     """Verify return is error dict for invalid symbol."""
     import server
+
     server._ticker_cache.clear()
 
     empty_ticker = MagicMock()
@@ -73,6 +74,7 @@ def test_get_stock_info_invalid():
 def test_get_stock_info_exception():
     """Verify return is error dict when exception raised."""
     import server
+
     server._ticker_cache.clear()
 
     def raise_error(*args, **kwargs):
@@ -91,15 +93,18 @@ def test_get_stock_info_exception():
 def test_get_historical_data_valid():
     """Verify return dict has data and metadata keys."""
     import server
+
     server._ticker_cache.clear()
 
-    df = pd.DataFrame({
-        "Open": [100.0, 101.0],
-        "High": [105.0, 106.0],
-        "Low": [99.0, 100.0],
-        "Close": [104.0, 105.0],
-        "Volume": [1000000, 1100000],
-    })
+    df = pd.DataFrame(
+        {
+            "Open": [100.0, 101.0],
+            "High": [105.0, 106.0],
+            "Low": [99.0, 100.0],
+            "Close": [104.0, 105.0],
+            "Volume": [1000000, 1100000],
+        }
+    )
     mock_ticker = MagicMock()
     mock_ticker.history.return_value = df
 
@@ -119,6 +124,7 @@ def test_get_historical_data_valid():
 def test_get_historical_data_empty():
     """Verify return is error dict for empty DataFrame."""
     import server
+
     server._ticker_cache.clear()
 
     empty_df = pd.DataFrame()
@@ -135,6 +141,7 @@ def test_get_historical_data_empty():
 def test_get_realtime_quote_valid(mock_ticker):
     """Verify price, change, changePercent calculated correctly."""
     import server
+
     server._ticker_cache.clear()
 
     with patch("server._ticker", return_value=mock_ticker):
@@ -153,6 +160,7 @@ def test_get_realtime_quote_valid(mock_ticker):
 def clear_caches():
     """Clear all caches before each test."""
     import server
+
     server._cache.clear()
     server._ticker_cache.clear()
     yield
@@ -198,8 +206,9 @@ def test_caching_behavior(mock_ticker):
 
 def test_cache_expiry():
     """Verify cache expires after TTL."""
-    import server
     import time
+
+    import server
 
     server._cache.clear()
     server._ticker_cache.clear()
