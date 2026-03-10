@@ -625,6 +625,186 @@ def get_market_overview() -> dict | str:
 
 
 # ──────────────────────────────────────────────
+# Technical Indicator Helpers
+# ──────────────────────────────────────────────
+
+
+def _compute_rsi(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """Calculate Relative Strength Index (RSI)."""
+    delta = df["Close"].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+
+def _compute_macd(df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int = 9) -> dict:
+    """Calculate MACD (Moving Average Convergence Divergence)."""
+    exp1 = df["Close"].ewm(span=fast, adjust=False).mean()
+    exp2 = df["Close"].ewm(span=slow, adjust=False).mean()
+    macd = exp1 - exp2
+    signal_line = macd.ewm(span=signal, adjust=False).mean()
+    histogram = macd - signal_line
+
+    # Crossover detection
+    crossover = "none"
+    if len(macd) >= 2:
+        if macd.iloc[-2] <= signal_line.iloc[-2] and macd.iloc[-1] > signal_line.iloc[-1]:
+            crossover = "bullish"
+        elif macd.iloc[-2] >= signal_line.iloc[-2] and macd.iloc[-1] < signal_line.iloc[-1]:
+            crossover = "bearish"
+
+    return {
+        "macd": macd,
+        "signal": signal_line,
+        "histogram": histogram,
+        "crossover": crossover,
+    }
+
+
+def _compute_bollinger(df: pd.DataFrame, period: int = 20, std_dev: float = 2) -> dict:
+    """Calculate Bollinger Bands."""
+    sma = df["Close"].rolling(window=period).mean()
+    std = df["Close"].rolling(window=period).std()
+    upper = sma + (std * std_dev)
+    lower = sma - (std * std_dev)
+
+    # Bandwidth and percent-B
+    bandwidth = (upper - lower) / sma * 100
+    percent_b = (df["Close"] - lower) / (upper - lower)
+
+    return {
+        "upper": upper,
+        "middle": sma,
+        "lower": lower,
+        "bandwidth": bandwidth,
+        "percent_b": percent_b,
+    }
+
+
+def _compute_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """Calculate Average True Range (ATR)."""
+    high = df["High"]
+    low = df["Low"]
+    close_prev = df["Close"].shift(1)
+
+    tr1 = high - low
+    tr2 = (high - close_prev).abs()
+    tr3 = (low - close_prev).abs()
+
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    atr = tr.rolling(window=period).mean()
+    return atr
+
+
+def _compute_support_resistance(df: pd.DataFrame, lookback: int = 20) -> dict:
+    """Calculate support and resistance levels from recent price action."""
+    recent = df.tail(lookback)
+    support = recent["Low"].min()
+    resistance = recent["High"].max()
+
+    return {
+        "support": _safe(support),
+        "resistance": _safe(resistance),
+        "range": _safe(resistance - support),
+    }
+
+
+@mcp.tool()
+@cached(ttl=300)
+def get_technical_analysis(symbol: str, period: str = "3mo", interval: str = "1d") -> dict | str:
+    """
+    Get technical analysis indicators for a stock symbol.
+
+    Args:
+        symbol: Stock ticker symbol
+        period: Time period for historical data (default: "3mo")
+        interval: Data interval (default: "1d")
+
+    Returns:
+        Dictionary with RSI, MACD, Bollinger Bands, ATR, moving averages,
+        and support/resistance levels.
+    """
+    try:
+        ticker = _ticker(symbol.upper())
+        df = ticker.history(period=period, interval=interval)
+
+        if df.empty or len(df) < 50:
+            return {"error": f"Insufficient data for technical analysis on '{symbol}'"}
+
+        # Normalize column names (handle multi-index from yfinance)
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [str(c[1]) if len(c) > 1 else str(c[0]) for c in df.columns.values]
+        else:
+            df.columns = [str(c).split()[-1] if " " in str(c) else str(c) for c in df.columns]
+
+        # Calculate all indicators
+        rsi = _compute_rsi(df)
+        macd = _compute_macd(df)
+        bollinger = _compute_bollinger(df)
+        atr = _compute_atr(df)
+        sr = _compute_support_resistance(df)
+
+        # Moving averages
+        sma_20 = df["Close"].rolling(window=20).mean().iloc[-1]
+        sma_50 = df["Close"].rolling(window=50).mean().iloc[-1]
+        sma_200 = df["Close"].rolling(window=200).mean().iloc[-1]
+        ema_12 = df["Close"].ewm(span=12).mean().iloc[-1]
+        ema_26 = df["Close"].ewm(span=26).mean().iloc[-1]
+
+        current_price = df["Close"].iloc[-1]
+        current_rsi = rsi.iloc[-1]
+
+        # RSI signal
+        rsi_signal = "neutral"
+        if current_rsi > 70:
+            rsi_signal = "overbought"
+        elif current_rsi < 30:
+            rsi_signal = "oversold"
+
+        return {
+            "symbol": symbol.upper(),
+            "currentPrice": _safe(current_price),
+            "rsi": {
+                "value": _safe(current_rsi),
+                "signal": rsi_signal,
+                "overbought": current_rsi > 70,
+                "oversold": current_rsi < 30,
+            },
+            "macd": {
+                "value": _safe(macd["macd"].iloc[-1]),
+                "signal": _safe(macd["signal"].iloc[-1]),
+                "histogram": _safe(macd["histogram"].iloc[-1]),
+                "crossover": macd["crossover"],
+            },
+            "bollinger": {
+                "upper": _safe(bollinger["upper"].iloc[-1]),
+                "middle": _safe(bollinger["middle"].iloc[-1]),
+                "lower": _safe(bollinger["lower"].iloc[-1]),
+                "bandwidth": _safe(bollinger["bandwidth"].iloc[-1]),
+                "percent_b": _safe(bollinger["percent_b"].iloc[-1]),
+            },
+            "atr": _safe(atr.iloc[-1]),
+            "supportResistance": sr,
+            "movingAverages": {
+                "sma20": _safe(sma_20),
+                "sma50": _safe(sma_50),
+                "sma200": _safe(sma_200),
+                "ema12": _safe(ema_12),
+                "ema26": _safe(ema_26),
+            },
+            "trend": {
+                "priceVsSma20": current_price > sma_20 if pd.notna(sma_20) else None,
+                "sma20VsSma50": sma_20 > sma_50 if pd.notna(sma_20) and pd.notna(sma_50) else None,
+            },
+        }
+    except Exception as e:
+        logger.error(f"Failed to compute technical analysis for '{symbol}': {e}", exc_info=True)
+        return {"error": f"Failed to compute technical analysis for '{symbol}': {str(e)}"}
+
+
+# ──────────────────────────────────────────────
 # Entry-point
 # ──────────────────────────────────────────────
 
