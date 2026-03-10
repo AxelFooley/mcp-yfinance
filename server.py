@@ -184,17 +184,62 @@ def get_stock_info(symbol: str) -> dict | str:
         Returns error dict if symbol is invalid.
     """
     try:
-        ticker = _ticker(symbol.upper())
+        symbol = symbol.upper()
+        ticker = _ticker(symbol)
+
+        # Try to get info
         info = ticker.info
 
+        # If info is empty, try alternative validation methods
         if not info or info == {}:
-            return {"error": f"Symbol '{symbol}' not found"}
+            # Try fast_info as a fallback (more reliable for basic validation)
+            try:
+                fast_info = ticker.fast_info
+                if fast_info and fast_info.get("last_price"):
+                    # Symbol exists but full info unavailable - return basic data
+                    return {
+                        "symbol": symbol,
+                        "companyName": None,
+                        "marketCap": None,
+                        "currentPrice": _safe(fast_info.get("last_price")),
+                        "previousClose": None,
+                        "dayChange": None,
+                        "dayChangePercent": None,
+                        "sector": None,
+                        "industry": None,
+                        "description": None,
+                        "website": None,
+                        "employees": None,
+                        "peRatio": None,
+                        "dividendYield": None,
+                        "beta": None,
+                        "eps": None,
+                        "52WeekHigh": None,
+                        "52WeekLow": None,
+                        "_note": "Basic data only - full info unavailable",
+                    }
+            except Exception:
+                pass
+
+            # Try to get historical data as a final validation check
+            try:
+                hist = ticker.history(period="5d")
+                if not hist.empty:
+                    # Symbol exists but info failed - return error with context
+                    return {
+                        "error": f"Symbol '{symbol}' data temporarily unavailable - Yahoo Finance may be rate-limiting or experiencing network issues"
+                    }
+            except Exception:
+                pass
+
+            # All validation methods failed - likely invalid symbol
+            return {"error": f"Symbol '{symbol}' not found or not available on Yahoo Finance"}
 
         current_price = info.get("currentPrice") or info.get("regularMarketPrice")
         previous_close = info.get("previousClose")
 
         return {
-            "symbol": symbol.upper(),
+            "symbol": symbol,
             "companyName": info.get("longName") or info.get("shortName"),
             "marketCap": _safe(info.get("marketCap")),
             "currentPrice": _safe(current_price),
