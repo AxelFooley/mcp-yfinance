@@ -804,6 +804,121 @@ def get_technical_analysis(symbol: str, period: str = "3mo", interval: str = "1d
         return {"error": f"Failed to compute technical analysis for '{symbol}': {str(e)}"}
 
 
+@mcp.tool()
+def compare_stocks(symbols: str, period: str = "3mo", interval: str = "1d") -> dict | str:
+    """
+    Compare multiple stocks side-by-side with performance metrics.
+
+    Args:
+        symbols: Comma-separated stock symbols (e.g., "AAPL,MSFT,GOOGL")
+        period: Time period for historical data (default: "3mo")
+        interval: Data interval (default: "1d")
+
+    Returns:
+        Dictionary with comparison metrics for each symbol, sorted by performance.
+    """
+    try:
+        symbol_list = [s.strip().upper() for s in symbols.split(",")]
+
+        if len(symbol_list) > 10:
+            return {"error": "Maximum 10 symbols allowed for comparison"}
+
+        if len(symbol_list) < 2:
+            return {"error": "At least 2 symbols required for comparison"}
+
+        comparisons = []
+
+        for symbol in symbol_list:
+            try:
+                ticker = _ticker(symbol)
+                df = ticker.history(period=period, interval=interval)
+
+                if df.empty or len(df) < 10:
+                    comparisons.append({"symbol": symbol, "error": "Insufficient data"})
+                    continue
+
+                # Normalize column names
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = [str(c[1]) if len(c) > 1 else str(c[0]) for c in df.columns.values]
+                else:
+                    df.columns = [
+                        str(c).split()[-1] if " " in str(c) else str(c) for c in df.columns
+                    ]
+
+                # Calculate metrics
+                current_price = df["Close"].iloc[-1]
+                start_price = df["Close"].iloc[0]
+                period_return = ((current_price / start_price) - 1) * 100
+
+                # Daily returns for volatility
+                daily_returns = df["Close"].pct_change().dropna()
+                volatility = daily_returns.std() * 100
+
+                # Sharpe ratio (simplified, assuming 2% risk-free rate)
+                avg_daily_return = daily_returns.mean()
+                sharpe_ratio = (
+                    (avg_daily_return * 252) / (volatility / 100 * (252**0.5))
+                    if volatility > 0
+                    else 0
+                )
+
+                # Max drawdown
+                rolling_max = df["Close"].expanding().max()
+                drawdown = (df["Close"] - rolling_max) / rolling_max
+                max_drawdown = drawdown.min() * 100
+
+                comparisons.append(
+                    {
+                        "symbol": symbol,
+                        "currentPrice": _safe(current_price),
+                        "periodReturn": _safe(period_return),
+                        "volatility": _safe(volatility),
+                        "sharpeRatio": _safe(sharpe_ratio),
+                        "maxDrawdown": _safe(max_drawdown),
+                        "dataPoints": len(df),
+                    }
+                )
+
+            except Exception as e:
+                logger.error(f"Failed to compare '{symbol}': {e}")
+                comparisons.append({"symbol": symbol, "error": str(e)})
+
+        # Sort by period return (descending)
+        comparisons_with_return = [c for c in comparisons if "periodReturn" in c]
+        comparisons_with_error = [c for c in comparisons if "error" in c]
+
+        comparisons_with_return.sort(key=lambda x: x["periodReturn"] or 0, reverse=True)
+
+        sorted_comparisons = comparisons_with_return + comparisons_with_error
+
+        # Calculate summary stats
+        valid_returns = [
+            c["periodReturn"] for c in comparisons_with_return if c["periodReturn"] is not None
+        ]
+
+        summary = {}
+        if valid_returns:
+            summary = {
+                "bestPerforming": comparisons_with_return[0]["symbol"],
+                "worstPerforming": comparisons_with_return[-1]["symbol"],
+                "averageReturn": _safe(sum(valid_returns) / len(valid_returns)),
+                "highestVolatility": max(
+                    comparisons_with_return, key=lambda x: x["volatility"] or 0
+                )["symbol"],
+            }
+
+        return {
+            "period": period,
+            "interval": interval,
+            "comparisons": sorted_comparisons,
+            "summary": summary,
+            "metadata": {"count": len(symbol_list)},
+        }
+    except Exception as e:
+        logger.error(f"Failed to compare stocks: {e}", exc_info=True)
+        return {"error": f"Failed to compare stocks: {str(e)}"}
+
+
 # ──────────────────────────────────────────────
 # Entry-point
 # ──────────────────────────────────────────────
