@@ -850,7 +850,9 @@ def get_technical_analysis(symbol: str, period: str = "3mo", interval: str = "1d
             },
             "trend": {
                 "priceVsSma20": _to_bool(current_price > sma_20) if pd.notna(sma_20) else None,
-                "sma20VsSma50": _to_bool(sma_20 > sma_50) if pd.notna(sma_20) and pd.notna(sma_50) else None,
+                "sma20VsSma50": _to_bool(sma_20 > sma_50)
+                if pd.notna(sma_20) and pd.notna(sma_50)
+                else None,
             },
         }
     except Exception as e:
