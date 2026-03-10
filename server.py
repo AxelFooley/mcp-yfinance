@@ -66,6 +66,13 @@ def _series_to_dict(series: pd.Series) -> dict:
     return {k: _safe(v) for k, v in series.to_dict().items()}
 
 
+def _to_bool(value: Any) -> bool | None:
+    """Convert numpy bool to Python bool for JSON serialization."""
+    if value is None:
+        return None
+    return bool(value)
+
+
 # ──────────────────────────────────────────────
 # In-Memory Cache
 # ──────────────────────────────────────────────
@@ -816,8 +823,8 @@ def get_technical_analysis(symbol: str, period: str = "3mo", interval: str = "1d
             "rsi": {
                 "value": _safe(current_rsi),
                 "signal": rsi_signal,
-                "overbought": current_rsi > 70,
-                "oversold": current_rsi < 30,
+                "overbought": _to_bool(current_rsi > 70),
+                "oversold": _to_bool(current_rsi < 30),
             },
             "macd": {
                 "value": _safe(macd["macd"].iloc[-1]),
@@ -842,8 +849,8 @@ def get_technical_analysis(symbol: str, period: str = "3mo", interval: str = "1d
                 "ema26": _safe(ema_26),
             },
             "trend": {
-                "priceVsSma20": current_price > sma_20 if pd.notna(sma_20) else None,
-                "sma20VsSma50": sma_20 > sma_50 if pd.notna(sma_20) and pd.notna(sma_50) else None,
+                "priceVsSma20": _to_bool(current_price > sma_20) if pd.notna(sma_20) else None,
+                "sma20VsSma50": _to_bool(sma_20 > sma_50) if pd.notna(sma_20) and pd.notna(sma_50) else None,
             },
         }
     except Exception as e:
